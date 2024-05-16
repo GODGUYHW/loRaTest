@@ -16,28 +16,25 @@ void setup(){
     }
     LoRa.onReceive(onReceive);
     LoRa.receive();
+    LoRa.setSpreadingFactor(7);
     Serial.println("LoRa init succeeded.");
 }
 
 void loop(){
     if (millis() - lastSendTime > interval) {
-        String message = "HeLoRa World!";   // send a message
+        String message = "Test";   // send a message
         sendMessage(message);
         Serial.println("Sending " + message);
         lastSendTime = millis();            // timestamp the message
-        interval = random(2000) + 1000;     // 2-3 seconds
-        LoRa.receive();                     // go back into receive mode
+        interval = 3000;     // 2-3 seconds
+        LoRa.receive();    // go back into receive mode
+        if(!receiveData){
+            static int count = 0;
+            count++;
+            Serial.print("Waiting for data Round: ");
+            Serial.println(count);
+        }else{
+            Serial.println("Data received already.");
+        }
     }
-
-    // LoRa.onReceive(onReceive);
-    int ack = LoRa.parsePacket();
-    if(ack){
-        Serial.println("Ack recieved");
-    }else{
-        Serial.println("Ack not recieved");
-    }
-    int rssi = LoRa.packetRssi();
-    Serial.print("RSSI: ");
-    Serial.println(rssi);
-    delay(5000);
 }

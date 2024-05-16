@@ -19,6 +19,14 @@ byte localAddress = 0xaf;     // address of this device
 String localAddressString = "0xaf";
 byte destination = 0x23;      // destination to send to
 String destinationAddressString = "0x23";
+extern bool sendSuccess = false;
+extern bool resendData = false;
+unsigned long previousMillis = 0;
+extern bool receiveModeData = false;
+extern String receiveData = "";
+
+bool isAlphaNumericOrComma(char c);
+bool hasNonAlphaNumericChars(String str);
 
 void sendMessage(String outgoing) {
   LoRa.beginPacket();                   // start packet
@@ -39,39 +47,77 @@ void sendMessage(String outgoing) {
 
 
 void onReceive(int packetSize) {
-  if (packetSize == 0) return;          // if there's no packet, return
-
-  // read packet header bytes:
-  int recipient = LoRa.read();          // recipient address
-  byte sender = LoRa.read();            // sender address
-  byte incomingMsgId = LoRa.read();     // incoming msg ID
-  byte incomingLength = LoRa.read();    // incoming msg length
-
-  String incoming = "";                 // payload of packet
-
-  while (LoRa.available()) {            // can't use readString() in callback, so
-    incoming += (char)LoRa.read();      // add bytes one by one
+  int count = 0;
+    while(true){
+      int packetSize = LoRa.parsePacket();
+      if(packetSize){
+        String rawPayload ="";
+        for(int i =0; i<packetSize;i++){
+          char currentChar = (char)LoRa.read();
+          if (currentChar == ' ') {
+            rawPayload += ",";
+          }else {
+            rawPayload += currentChar;
+          }
+        }
+        Serial.print("Data Rx");
+        Serial.println(rawPayload);
+        if (hasNonAlphaNumericChars(rawPayload)) {
+          Serial.println("String มีตัวอักขระที่ไม่ใช่ A-Z, 0-9 และ ,");
+        } else {
+          Serial.println("String เป็น A-Z, 0-9 และ , เท่านั้น");
+          Serial.println(rawPayload);
+          // Split the rawPayload into an array using " " (space) as a delimiter
+          int arraySize = 0;
+          String payloadArray[200]; // Assuming a maximum of 20 elements
+          payloadArray[arraySize++] = ""; // Initialize the first element
+          for (int i = 0; i < rawPayload.length(); i++) {
+            char currentChar = rawPayload.charAt(i);
+            if (currentChar == ',') {
+              payloadArray[arraySize++] = ""; // Move to the next element
+                } else {
+                payloadArray[arraySize - 1] += currentChar; // Add the character to the current element
+                }
+          }
+          String recipient = "0x"+String(payloadArray[0].toInt(), HEX);          // recipient address
+          String sender = "0x"+String(payloadArray[1].toInt(), HEX);            // sender address
+          String incomingLength = payloadArray[2];    // incoming msg length
+          if(recipient == localAddressString && sender == destinationAddressString){
+            receiveData = rawPayload;
+            sendSuccess = true;
+            resendData = false;
+            break;
+          }
+        }
+      }
+      else{
+        unsigned long currentMillis = millis();
+        if (currentMillis - previousMillis >= 1000) {
+          previousMillis = currentMillis;
+          count++;
+          Serial.println("count");
+          Serial.println(count);
+        }
+        if(count == 10){
+          Serial.println("break");
+          sendSuccess = false;
+          resendData = true;
+          break;
+        }
+      }
   }
+}
 
-  if (incomingLength != incoming.length()) {   // check length for error
-    Serial.println("error: message length does not match length");
-    return;                             // skip rest of function
+bool hasNonAlphaNumericChars(String str){
+  for (int i = 0; i < str.length(); i++) {
+    char currentChar = str[i];
+    if (!isAlphaNumericOrComma(currentChar)) {
+      return true;  // พบตัวอักขระที่ไม่ใช่ A-Z, 0-9 และ ,
+    }
   }
+  return false;  // ไม่พบตัวอักขระที่ไม่ใช่ A-Z, 0-9 และ ,
+}
 
-  // if the recipient isn't this device or broadcast,
-  if (recipient != localAddress && recipient != 0xFF) {
-    Serial.println("This message is not for me.");
-    return;                             // skip rest of function
-  }
-
-  // if message is for this device, or broadcast, print details:
-  Serial.println("------------------------------------------");
-  Serial.println("Received from: 0x" + String(sender, HEX));
-  Serial.println("Sent to: 0x" + String(recipient, HEX));
-  Serial.println("Message ID: " + String(incomingMsgId));
-  Serial.println("Message length: " + String(incomingLength));
-  Serial.println("Message: " + incoming);
-  Serial.println("RSSI: " + String(LoRa.packetRssi()));
-  Serial.println("Snr: " + String(LoRa.packetSnr()));
-  Serial.println();
+bool isAlphaNumericOrComma(char c) {
+  return (c >= 'A' && c <= 'Z') || (c >= 'a' && c <= 'z') || (c >= '0' && c <= '9') || (c == ',') || (c == '.');
 }
