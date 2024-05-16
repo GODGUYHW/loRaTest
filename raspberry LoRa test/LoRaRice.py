@@ -1,6 +1,11 @@
 import datetime
-import os
+import serial
 import re
+import requests
+import socket
+import json
+import os
+import sys 
 from time import sleep
 from SX127x.LoRa import *
 from SX127x.board_config import BOARD
@@ -28,7 +33,7 @@ class LoRaDevice(LoRa):
         self.set_pa_config(output_power=tx_power)
         self.set_mode(MODE.STDBY)
         
-    def send(self,address):
+    def send(self):
         lora.set_tx_power(12)
         data = "test"
         self.write_payload(data)
@@ -98,10 +103,17 @@ lora = LoRaDevice(verbose=False)
 lora.set_mode(MODE.STDBY)
 lora.set_pa_config(pa_select=1)
 lora.set_freq(915.0)      
+lora.set_spreading_factor(7)
 
 try:
     lora.start()
-
+    while True:
+        command = input("Enter command (send/exit): ")
+        if command == "send":
+            lora.send()
+        elif command =="exit":
+            break
+    
 except KeyboardInterrupt:
     print("KeyboardInterrupt")
 finally:
